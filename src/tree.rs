@@ -1,5 +1,10 @@
+#![allow(dead_code)]
 ///! A binary tree structure
 use crate::util;
+
+use std::fmt::Debug;
+
+pub trait NodeContent : Default + Clone + Debug + PartialEq + ToString {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum NodeType {
@@ -22,22 +27,22 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-pub struct Tree {
-    nodes: Vec<Node>,
+pub(crate) struct Tree<T: NodeContent> {
+    nodes: Vec<Node<T>>,
     id_ctr: u128,
     leaf_id_ctr: u128,
 }
 
 #[derive(Default, Clone, Debug, PartialEq)]
-pub struct Node {
-    val: String, // make generic
+pub(crate) struct Node<T: NodeContent> {
+    val: T,
     id: u128,
     leaf_id: u128, // Only used if node_type is Leaf
     node_type: NodeType,
 }
 
-impl Node {
-    pub fn new(v: &String) -> Self {
+impl<T: NodeContent> Node<T> {
+    pub fn new(v: &T) -> Self {
         Self {
             val: v.clone(),
             id: u128::MAX,
@@ -45,7 +50,7 @@ impl Node {
             node_type: NodeType::Leaf,
         }
     }
-    pub fn get_val(&self) -> &String {
+    pub fn get_val(&self) -> &T {
         &self.val
     }
     fn is_leaf(&self) -> bool {
@@ -79,7 +84,7 @@ impl Node {
     }
 }
 
-impl Tree {
+impl<T: NodeContent> Tree<T> {
     pub fn new() -> Self {
         Self {
             nodes: Vec::new(),
@@ -93,7 +98,7 @@ impl Tree {
     pub fn num_nodes(&self) -> u128 {
         util::num_nodes(self.leaf_id_ctr)
     }
-    pub fn get_node(&self, id: u128) -> Result<&Node, Error> {
+    pub fn get_node(&self, id: u128) -> Result<&Node<T>, Error> {
         if id > self.id_ctr {
             return Err(Error::InvalidNodeId);
         }
@@ -102,37 +107,37 @@ impl Tree {
             None => Err(Error::InvalidNodeId),
         }
     }
-    pub fn get_parent(&self, node_id: u128) -> Result<&Node, Error> {
+    pub fn get_parent(&self, node_id: u128) -> Result<&Node<T>, Error> {
         let node = match self.nodes.get(node_id as usize) {
             Some(n) => n,
             None => return Err(Error::InvalidNodeId),
         };
         self.get_parent_from_node(node)
     }
-    pub fn get_parent_from_node(&self, node: &Node) -> Result<&Node, Error> {
+    pub fn get_parent_from_node(&self, node: &Node<T>) -> Result<&Node<T>, Error> {
         match self.nodes.get(node.get_parent_id() as usize) {
             Some(n) => Ok(n),
             None => Err(Error::InvalidNodeId),
         }
     }
-    pub fn get_sibling(&self, node_id: u128) -> Result<&Node, Error> {
+    pub fn get_sibling(&self, node_id: u128) -> Result<&Node<T>, Error> {
         let node = match self.nodes.get(node_id as usize) {
             Some(n) => n,
             None => return Err(Error::InvalidNodeId),
         };
         self.get_sibling_from_node(node)
     }
-    pub fn get_sibling_from_node(&self, node: &Node) -> Result<&Node, Error> {
+    pub fn get_sibling_from_node(&self, node: &Node<T>) -> Result<&Node<T>, Error> {
         match self.nodes.get(node.get_sibling_id() as usize) {
             Some(n) => Ok(n),
             None => Err(Error::InvalidNodeId),
         }
     }
-    pub fn get_direct_path(&self, node_id: u128) -> Result<Vec<&Node>, Error> {
+    pub fn get_direct_path(&self, node_id: u128) -> Result<Vec<&Node<T>>, Error> {
         let node = self.get_node(node_id)?;
         self.get_direct_path_from_node(node)
     }
-    pub fn get_direct_path_from_node(&self, node: &Node) -> Result<Vec<&Node>, Error> {
+    pub fn get_direct_path_from_node(&self, node: &Node<T>) -> Result<Vec<&Node<T>>, Error> {
         let path_ids = node.get_direct_path_ids(self.get_root());
         let mut nodes = Vec::new();
         for id in path_ids {
@@ -141,7 +146,7 @@ impl Tree {
         }
         Ok(nodes)
     }
-    pub fn get_root(&self) -> &Node {
+    pub fn get_root(&self) -> &Node<T> {
         let id = (1 << util::log2(self.num_nodes())) - 1;
         let out = self
             .nodes
@@ -150,11 +155,11 @@ impl Tree {
         debug_assert_eq!(id as u128, out.id);
         out
     }
-    pub fn add(&mut self, val: &String) {
+    pub fn add(&mut self, val: &T) {
         if self.id_ctr % 2 != 0 {
             // We have to add an intermediate node before we can add the leaf.
             self.nodes.push(Node {
-                val: "I".to_owned(),
+                val: T::default(),
                 id: self.id_ctr,
                 leaf_id: u128::MAX,
                 node_type: NodeType::Intermediate,
@@ -173,7 +178,7 @@ impl Tree {
         self.id_ctr += 1;
     }
 
-    fn get_level(&self, level: u128) -> Vec<&Node> {
+    fn get_level(&self, level: u128) -> Vec<&Node<T>> {
         let mut out = Vec::new();
 
         for node in &self.nodes {
@@ -221,7 +226,7 @@ impl Tree {
                 } else {
                     node.id.to_string()
                 };
-                s += &(node.get_val().to_owned() + "_" + &id + &space(spacer));
+                s += &(node.get_val().to_string() + "_" + &id + &space(spacer));
             }
             s += "\n";
         }
@@ -230,9 +235,12 @@ impl Tree {
     }
 }
 
+// === Unit Tests ===
+impl NodeContent for String {}
+
 #[test]
 fn test_get_node() {
-    let mut tree = Tree::new();
+    let mut tree = Tree::<String>::new();
     for i in 65..76 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -245,7 +253,7 @@ fn test_get_node() {
 
 #[test]
 fn test_left() {
-    let mut tree = Tree::new();
+    let mut tree = Tree::<String>::new();
     for i in 65..77 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -263,7 +271,7 @@ fn test_left() {
 
 #[test]
 fn test_right() {
-    let mut tree = Tree::new();
+    let mut tree = Tree::<String>::new();
     for i in 65..76 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -277,7 +285,7 @@ fn test_right() {
 
 #[test]
 fn test_parent() {
-    let mut tree = Tree::new();
+    let mut tree = Tree::<String>::new();
     for i in 65..79 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -291,11 +299,11 @@ fn test_parent() {
 
 #[test]
 fn test_direct_path() {
-    let mut tree = Tree::new();
+    let mut tree = Tree::<String>::new();
     for i in 65..79 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
-    fn check(id: u128, expected: &Vec<u128>, tree: &Tree) {
+    fn check(id: u128, expected: &Vec<u128>, tree: &Tree<String>) {
         let path = tree.get_direct_path(id).unwrap();
         let path_ids: Vec<u128> = path.iter().map(|n| n.id).collect();
         assert_eq!(expected, &path_ids);
@@ -314,8 +322,17 @@ fn test_direct_path() {
 }
 
 #[test]
+fn test_root() {
+    let mut tree = Tree::<String>::new();
+    for i in 65..77 {
+        tree.add(&String::from_utf8(vec![i]).unwrap());
+    }
+    assert_eq!(Ok(tree.get_root()), tree.get_node(15));
+}
+
+#[test]
 fn simple_tree() {
-    let mut tree = Tree::new();
+    let mut tree = Tree::<String>::new();
     for i in 65..79 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
         // println!("{:?}", &tree);
