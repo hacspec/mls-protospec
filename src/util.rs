@@ -20,7 +20,7 @@ pub(crate) fn num_nodes(x: u128) -> u128 {
     }
 }
 
-pub (crate) fn level(x: u128) -> u128 {
+pub(crate) fn level(x: u128) -> u128 {
     // XXX: masked log2 really
     if x & 0x01 == 0 {
         return 0;

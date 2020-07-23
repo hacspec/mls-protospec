@@ -4,7 +4,7 @@ use crate::util;
 
 use std::fmt::Debug;
 
-pub trait NodeContent : Default + Clone + Debug + PartialEq + ToString {}
+pub trait NodeContent: Default + Clone + Debug + PartialEq + ToString {}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum NodeType {
@@ -27,8 +27,9 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-pub(crate) struct Tree<T: NodeContent> {
+pub(crate) struct Tree<T: NodeContent, U: Default> {
     nodes: Vec<Node<T>>,
+    cfg: U,
     id_ctr: u128,
     leaf_id_ctr: u128,
 }
@@ -84,10 +85,11 @@ impl<T: NodeContent> Node<T> {
     }
 }
 
-impl<T: NodeContent> Tree<T> {
+impl<T: NodeContent, U: Default> Tree<T, U> {
     pub fn new() -> Self {
         Self {
             nodes: Vec::new(),
+            cfg: U::default(),
             id_ctr: 0,
             leaf_id_ctr: 0,
         }
@@ -240,7 +242,7 @@ impl NodeContent for String {}
 
 #[test]
 fn test_get_node() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..76 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -253,7 +255,7 @@ fn test_get_node() {
 
 #[test]
 fn test_left() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..77 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -271,7 +273,7 @@ fn test_left() {
 
 #[test]
 fn test_right() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..76 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -285,7 +287,7 @@ fn test_right() {
 
 #[test]
 fn test_parent() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..79 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -299,11 +301,11 @@ fn test_parent() {
 
 #[test]
 fn test_direct_path() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..79 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
-    fn check(id: u128, expected: &Vec<u128>, tree: &Tree<String>) {
+    fn check(id: u128, expected: &Vec<u128>, tree: &Tree<String, String>) {
         let path = tree.get_direct_path(id).unwrap();
         let path_ids: Vec<u128> = path.iter().map(|n| n.id).collect();
         assert_eq!(expected, &path_ids);
@@ -323,7 +325,7 @@ fn test_direct_path() {
 
 #[test]
 fn test_root() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..77 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
     }
@@ -332,7 +334,7 @@ fn test_root() {
 
 #[test]
 fn simple_tree() {
-    let mut tree = Tree::<String>::new();
+    let mut tree = Tree::<String, String>::new();
     for i in 65..79 {
         tree.add(&String::from_utf8(vec![i]).unwrap());
         // println!("{:?}", &tree);

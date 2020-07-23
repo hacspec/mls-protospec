@@ -1,11 +1,12 @@
-use crate::tree::{self, Tree, NodeContent};
+use crate::ciphersuites::Ciphersuite;
+use crate::tree::{self, NodeContent, Tree};
 
 #[derive(Default, Clone, Debug, PartialEq)]
 pub struct Node {
     private_key: Vec<u8>,
     public_key: Vec<u8>,
-    unmurged_leafs: Vec<u8>, // ordered
-    credential: Vec<u8>, // Leaf nodes only
+    unmerged_leafs: Vec<u8>, // ordered
+    credential: Vec<u8>,     // Leaf nodes only
     parent_hash: Vec<u8>,
     blank: bool, // if true, nothing else is set
 }
@@ -17,3 +18,8 @@ impl ToString for Node {
 }
 
 impl NodeContent for Node {}
+
+#[derive(Debug, Default)]
+pub struct TreeConfig {
+    cipher_suite: Ciphersuite,
+}

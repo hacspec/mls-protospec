@@ -7,3 +7,9 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+evercrypt = { git = "https://github.com/franziskuskiefer/evercrypt-rust", branch = "master" }
+hpke = { git = "https://github.com/franziskuskiefer/hpke-rs", branch = "master" }
+
+# XXX: For local dev
+[patch.'https://github.com/franziskuskiefer/evercrypt-rust']
+evercrypt = { path = "../evercrypt-rust/evercrypt-rs" }
