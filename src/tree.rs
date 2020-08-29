@@ -4,12 +4,14 @@ use crate::util;
 
 use std::fmt::Debug;
 
-pub trait NodeContent: Default + Clone + Debug + PartialEq + ToString {}
+pub trait NodeContent: Default + Clone + Debug + PartialEq + ToString {
+    fn is_blank(&self) -> bool;
+    fn get_unmerged_leaves(&self) -> &[u128];
+}
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum NodeType {
-    Root,
-    Intermediate, // XXX: Also used for root atm.
+    Parent,
     Leaf,
     Unspecified,
 }
@@ -135,6 +137,32 @@ impl<T: NodeContent, U: Default> Tree<T, U> {
             None => Err(Error::InvalidNodeId),
         }
     }
+    pub fn get_left_child(&self, node_id: u128) -> Result<&Node<T>, Error> {
+        let node = match self.nodes.get(node_id as usize) {
+            Some(n) => n,
+            None => return Err(Error::InvalidNodeId),
+        };
+        self.get_left_child_from_node(node)
+    }
+    pub fn get_left_child_from_node(&self, node: &Node<T>) -> Result<&Node<T>, Error> {
+        match self.nodes.get(node.get_left_id() as usize) {
+            Some(n) => Ok(n),
+            None => Err(Error::InvalidNodeId),
+        }
+    }
+    pub fn get_right_child(&self, node_id: u128) -> Result<&Node<T>, Error> {
+        let node = match self.nodes.get(node_id as usize) {
+            Some(n) => n,
+            None => return Err(Error::InvalidNodeId),
+        };
+        self.get_right_child_from_node(node)
+    }
+    pub fn get_right_child_from_node(&self, node: &Node<T>) -> Result<&Node<T>, Error> {
+        match self.nodes.get(node.get_right_id() as usize) {
+            Some(n) => Ok(n),
+            None => Err(Error::InvalidNodeId),
+        }
+    }
     pub fn get_direct_path(&self, node_id: u128) -> Result<Vec<&Node<T>>, Error> {
         let node = self.get_node(node_id)?;
         self.get_direct_path_from_node(node)
@@ -164,7 +192,7 @@ impl<T: NodeContent, U: Default> Tree<T, U> {
                 val: T::default(),
                 id: self.id_ctr,
                 leaf_id: u128::MAX,
-                node_type: NodeType::Intermediate,
+                node_type: NodeType::Parent,
             });
             self.id_ctr += 1;
         }
@@ -190,6 +218,75 @@ impl<T: NodeContent, U: Default> Tree<T, U> {
         }
 
         out
+    }
+
+    // Section 5.2
+    // The resolution of a node is an ordered list of non-blank nodes that
+    // collectively cover all non-blank descendants of the node.
+    fn resolution(&self, node_id: u128) -> Result<Vec<&Node<T>>, Error> {
+        let node = self.get_node(node_id)?;
+
+        if node.val.is_blank() {
+            if node.node_type == NodeType::Leaf {
+                // The resolution of a blank leaf node is the empty list
+                return Ok(Vec::new());
+            }
+            // The resolution of a blank intermediate node
+            let mut left = self.resolution(self.get_left_child_from_node(node)?.id)?;
+            let mut right = self.resolution(self.get_right_child_from_node(node)?.id)?;
+            left.append(&mut right);
+            return Ok(left);
+        }
+
+        // The resolution of a non-blank node
+        debug_assert!(!node.val.is_blank());
+        let mut resolution = vec![node];
+
+        // Add all unmerged leaves
+        for &unmerged in node.val.get_unmerged_leaves().iter() {
+            resolution.push(self.get_node(unmerged)?);
+        }
+
+        Ok(resolution)
+    }
+
+    fn hash_parent(&self, node: &Node<T>) -> Result<Vec<u8>, Error> {
+        // struct {
+        //     uint8 present;
+        //     select (present) {
+        //         case 0: struct{};
+        //         case 1: T value;
+        //     }
+        // } optional<T>;
+        // struct {
+        //     HPKEPublicKey public_key;
+        //     uint32 unmerged_leaves<0..2^32-1>;
+        //     opaque parent_hash<0..255>;
+        // } ParentNode;
+        // struct {
+        //     uint32 node_index;
+        //     optional<ParentNode> parent_node;
+        //     opaque left_hash<0..255>;
+        //     opaque right_hash<0..255>;
+        // } ParentNodeHashInput;
+        unimplemented!()
+    }
+    fn hash_leaf(&self, node: &Node<T>) -> Result<Vec<u8>, Error> {
+        // struct {
+        //     uint32 node_index;
+        //     optional<KeyPackage> key_package;
+        // } LeafNodeHashInput;
+        unimplemented!()
+    }
+
+    // Section 7.5 Tree Hash
+    pub fn hash(&self, node_id: u128) -> Result<Vec<u8>, Error> {
+        let node = self.get_node(node_id)?;
+        match node.node_type {
+            NodeType::Parent => self.hash_parent(node),
+            NodeType::Leaf => self.hash_leaf(node),
+            _ => panic!("This shouldn't happen ..."),
+        }
     }
 
     pub fn to_str(&self) -> String {
@@ -237,120 +334,132 @@ impl<T: NodeContent, U: Default> Tree<T, U> {
     }
 }
 
-// === Unit Tests ===
-impl NodeContent for String {}
+// === Unit Tests that need internal functions ===
+#[cfg(test)]
+mod test_tree {
+    use super::*;
 
-#[test]
-fn test_get_node() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..76 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-    }
-    for i in 0..21 {
-        assert_eq!(i, tree.get_node(i).unwrap().id);
-        assert_eq!(i, tree.nodes.get(i as usize).unwrap().id);
-    }
-    assert_eq!(Err(Error::InvalidNodeId), tree.get_node(21));
-}
-
-#[test]
-fn test_left() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..77 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-    }
-    assert_eq!(7, tree.get_root().get_left_id());
-    assert_eq!(
-        3,
-        tree.get_node(tree.get_root().get_left_id())
-            .unwrap()
-            .get_left_id()
-    );
-    assert_eq!(1, tree.get_node(3).unwrap().get_left_id());
-    assert_eq!(0, tree.get_node(1).unwrap().get_left_id());
-    assert_eq!(16, tree.get_node(17).unwrap().get_left_id());
-}
-
-#[test]
-fn test_right() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..76 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-    }
-    // Note that this node doesn't exist!
-    assert_eq!(23, tree.get_root().get_right_id());
-    assert_eq!(11, tree.get_node(7).unwrap().get_right_id());
-    assert_eq!(18, tree.get_node(17).unwrap().get_right_id());
-    assert_eq!(14, tree.get_node(13).unwrap().get_right_id());
-    assert_eq!(5, tree.get_node(3).unwrap().get_right_id());
-}
-
-#[test]
-fn test_parent() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..79 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-    }
-    // Note that this node doesn't exist!
-    assert_eq!(31, tree.get_root().get_parent_id());
-    assert_eq!(15, tree.get_node(7).unwrap().get_parent_id());
-    assert_eq!(7, tree.get_node(3).unwrap().get_parent_id());
-    assert_eq!(5, tree.get_node(4).unwrap().get_parent_id());
-    assert_eq!(15, tree.get_node(23).unwrap().get_parent_id());
-}
-
-#[test]
-fn test_direct_path() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..79 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-    }
-    fn check(id: u128, expected: &Vec<u128>, tree: &Tree<String, String>) {
-        let path = tree.get_direct_path(id).unwrap();
-        let path_ids: Vec<u128> = path.iter().map(|n| n.id).collect();
-        assert_eq!(expected, &path_ids);
-    }
-    check(0, &vec![1, 3, 7, 15], &tree);
-    check(2, &vec![1, 3, 7, 15], &tree);
-    check(4, &vec![5, 3, 7, 15], &tree);
-    check(6, &vec![5, 3, 7, 15], &tree);
-    check(8, &vec![9, 11, 7, 15], &tree);
-
-    // Querrying a path that doesn't exist throws an error.
-    match tree.get_direct_path(26) {
-        Ok(_) => panic!("There should be no valid path here!"),
-        Err(e) => assert_eq!(e, Error::InvalidNodeId),
-    }
-}
-
-#[test]
-fn test_root() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..77 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-    }
-    assert_eq!(Ok(tree.get_root()), tree.get_node(15));
-}
-
-#[test]
-fn simple_tree() {
-    let mut tree = Tree::<String, String>::new();
-    for i in 65..79 {
-        tree.add(&String::from_utf8(vec![i]).unwrap());
-        // println!("{:?}", &tree);
-        println!("\npretty print tree:\n{}", tree.to_str());
+    impl NodeContent for String {
+        fn is_blank(&self) -> bool {
+            self.is_empty()
+        }
+        fn get_unmerged_leaves(&self) -> &[u128] {
+            unimplemented!();
+        }
     }
 
-    // let path = tree.find_empty_path();
-    // println!("path: {:?}", path);
+    #[test]
+    fn test_get_node() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..76 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+        }
+        for i in 0..21 {
+            assert_eq!(i, tree.get_node(i).unwrap().id);
+            assert_eq!(i, tree.nodes.get(i as usize).unwrap().id);
+        }
+        assert_eq!(Err(Error::InvalidNodeId), tree.get_node(21));
+    }
 
-    // tree.add(Node::new("B"));
-    // tree.add(Node::new("C"));
+    #[test]
+    fn test_left() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..77 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+        }
+        assert_eq!(7, tree.get_root().get_left_id());
+        assert_eq!(
+            3,
+            tree.get_node(tree.get_root().get_left_id())
+                .unwrap()
+                .get_left_id()
+        );
+        assert_eq!(1, tree.get_node(3).unwrap().get_left_id());
+        assert_eq!(0, tree.get_node(1).unwrap().get_left_id());
+        assert_eq!(16, tree.get_node(17).unwrap().get_left_id());
+    }
 
-    // println!("\n\n{:?}", &tree);
+    #[test]
+    fn test_right() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..76 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+        }
+        // Note that this node doesn't exist!
+        assert_eq!(23, tree.get_root().get_right_id());
+        assert_eq!(11, tree.get_node(7).unwrap().get_right_id());
+        assert_eq!(18, tree.get_node(17).unwrap().get_right_id());
+        assert_eq!(14, tree.get_node(13).unwrap().get_right_id());
+        assert_eq!(5, tree.get_node(3).unwrap().get_right_id());
+    }
 
-    // tree.add(Node::new("D"));
+    #[test]
+    fn test_parent() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..79 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+        }
+        // Note that this node doesn't exist!
+        assert_eq!(31, tree.get_root().get_parent_id());
+        assert_eq!(15, tree.get_node(7).unwrap().get_parent_id());
+        assert_eq!(7, tree.get_node(3).unwrap().get_parent_id());
+        assert_eq!(5, tree.get_node(4).unwrap().get_parent_id());
+        assert_eq!(15, tree.get_node(23).unwrap().get_parent_id());
+    }
 
-    // println!("\n\n{:?}", &tree);
-    // println!("\npretty print tree:\n {}", tree.to_str());
+    #[test]
+    fn test_direct_path() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..79 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+        }
+        fn check(id: u128, expected: &Vec<u128>, tree: &Tree<String, String>) {
+            let path = tree.get_direct_path(id).unwrap();
+            let path_ids: Vec<u128> = path.iter().map(|n| n.id).collect();
+            assert_eq!(expected, &path_ids);
+        }
+        check(0, &vec![1, 3, 7, 15], &tree);
+        check(2, &vec![1, 3, 7, 15], &tree);
+        check(4, &vec![5, 3, 7, 15], &tree);
+        check(6, &vec![5, 3, 7, 15], &tree);
+        check(8, &vec![9, 11, 7, 15], &tree);
+
+        // Querrying a path that doesn't exist throws an error.
+        match tree.get_direct_path(26) {
+            Ok(_) => panic!("There should be no valid path here!"),
+            Err(e) => assert_eq!(e, Error::InvalidNodeId),
+        }
+    }
+
+    #[test]
+    fn test_root() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..77 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+        }
+        assert_eq!(Ok(tree.get_root()), tree.get_node(15));
+    }
+
+    #[test]
+    fn simple_tree() {
+        let mut tree = Tree::<String, String>::new();
+        for i in 65..79 {
+            tree.add(&String::from_utf8(vec![i]).unwrap());
+            // println!("{:?}", &tree);
+            println!("\npretty print tree:\n{}", tree.to_str());
+        }
+
+        // let path = tree.find_empty_path();
+        // println!("path: {:?}", path);
+
+        // tree.add(Node::new("B"));
+        // tree.add(Node::new("C"));
+
+        // println!("\n\n{:?}", &tree);
+
+        // tree.add(Node::new("D"));
+
+        // println!("\n\n{:?}", &tree);
+        // println!("\npretty print tree:\n {}", tree.to_str());
+    }
 }

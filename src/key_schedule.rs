@@ -1,40 +1,35 @@
-///! The Key Schedule
-///! * HKDF-Extract takes its salt argument from the top and its IKM argument from the left
-///! * Derive-Secret takes its Secret argument from the incoming arrow
-///!
-///!                init_secret_[n-1] (or 0)
-///!                      |
-///!                      V
-///!     PSK (or 0) -> HKDF-Extract = early_secret
-///!                      |
-///!                Derive-Secret(., "derived", "")
-///!                      |
-///!                      V
-///! commit_secret -> HKDF-Extract = epoch_secret
-///!                      |
-///!                      +--> HKDF-Expand(., "mls 1.0 welcome", Hash.length)
-///!                      |    = welcome_secret
-///!                      |
-///!                      +--> Derive-Secret(., "sender data", GroupContext_[n])
-///!                      |    = sender_data_secret
-///!                      |
-///!                      +--> Derive-Secret(., "handshake", GroupContext_[n])
-///!                      |    = handshake_secret
-///!                      |
-///!                      +--> Derive-Secret(., "app", GroupContext_[n])
-///!                      |    = application_secret
-///!                      |
-///!                      +--> Derive-Secret(., "exporter", GroupContext_[n])
-///!                      |    = exporter_secret
-///!                      |
-///!                      +--> Derive-Secret(., "confirm", GroupContext_[n])
-///!                      |    = confirmation_key
-///!                      |
-///!                      V
-///!                Derive-Secret(., "init", GroupContext_[n])
-///!                      |
-///!                      V
-///!                init_secret_[n]
+//! The Key Schedule
+//! * HKDF-Extract takes its salt argument from the top and its IKM argument from the left
+//! * Derive-Secret takes its Secret argument from the incoming arrow
+//!
+//!                   init_secret_[n-1]
+//!                         |
+//!                         V
+//!    commit_secret -> KDF.Extract = joiner_secret
+//!                         |
+//!                         +--> Derive-Secret(., "welcome")
+//!                         |    = welcome_secret
+//!                         |
+//!                         V
+//!                   Derive-Secret(., "member")
+//!                         |
+//!                         V
+//!       PSK (or 0) -> KDF.Extract = member_secret
+//!                         |
+//!                         V
+//!                   Derive-Secret(., "epoch")
+//!                         |
+//!                         V
+//! GroupContext_[n] -> KDF.Extract = epoch_secret
+//!                         |
+//!                         +--> Derive-Secret(., <label>)
+//!                         |    = <secret>
+//!                         |
+//!                         V
+//!                   Derive-Secret(., "init")
+//!                         |
+//!                         V
+//!                   init_secret_[n]
 use crate::ciphersuites::Ciphersuite;
 use evercrypt::hkdf::{hkdf_expand, hkdf_extract};
 use evercrypt::hmac;
@@ -54,7 +49,10 @@ struct Label {
 
 impl Label {
     fn encode(&self) -> Vec<u8> {
-        
+        let mut encoded = group_context_hash.clone();
+        encoded.extend(self.length.to_be_bytes());
+        encoded.extend(("mls10"+self.label).into_bytes());
+        encoded.extend()
     }
 }
 
