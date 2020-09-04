@@ -9,6 +9,7 @@
 
 type ExtensionType = u16;
 
+#[derive(Debug)]
 pub(crate) struct Extension {
     extension_type: ExtensionType,
     extension_data: Vec<u8>,

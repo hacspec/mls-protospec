@@ -1,15 +1,24 @@
 use evercrypt::{aead, digest, hmac, signature};
 use hpke;
+use crate::traits::Encode;
 
 #[derive(Debug, PartialEq)]
 pub struct Ciphersuite {
-    name: Name,
-    hash: digest::Mode,
-    kem: hpke::kem::Mode,
-    kdf: hmac::Mode, // Not in spec. Only HKDF is specified here. This can't be used in HPKE, but only standalone
-    hpke_aead: hpke::aead::Mode, // Not in spec. Should really be the same as aead.
-    aead: aead::Mode,
-    signature: signature::Mode,
+    pub(crate) name: Name,
+    pub(crate) hash: digest::Mode,
+    pub(crate) kem: hpke::kem::Mode,
+    pub(crate) kdf: hmac::Mode, // Not in spec. Only HKDF is specified here. This can't be used in HPKE, but only standalone
+    pub(crate) hpke_aead: hpke::aead::Mode, // Not in spec. Should really be the same as aead.
+    pub(crate) aead: aead::Mode,
+    pub(crate) signature: signature::Mode,
+}
+
+impl Encode for Ciphersuite {
+    fn encode(&self) -> Vec<u8> {
+        let mut out = Vec::new();
+        out.extend_from_slice(&(self.name as u16).to_be_bytes());
+        out
+    }
 }
 
 /// The default ciphersuite is the only mandatory one.

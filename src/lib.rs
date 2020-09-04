@@ -5,6 +5,6 @@ mod extensions;
 pub mod key_package;
 pub mod message;
 pub mod proposal;
-mod ratchet_tree;
+pub mod traits;
 mod tree;
 mod util;
