@@ -11,6 +11,8 @@ use tree_hash::*;
 mod node;
 use node::*;
 
+mod pretty_print;
+
 use std::fmt::Debug;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -20,7 +22,7 @@ pub enum Error {
 }
 
 #[derive(Debug)]
-pub(crate) struct Tree {
+pub struct Tree {
     nodes: Vec<Node>,
     id_ctr: u32,
     leaf_id_ctr: u32,
@@ -50,6 +52,9 @@ impl Tree {
             Some(n) => Ok(n),
             None => Err(Error::InvalidNodeId),
         }
+    }
+    pub fn get_leaf_node(&self, leaf_id: u32) -> Result<&Node, Error> {
+        self.get_node(2*leaf_id)
     }
     pub fn get_parent(&self, node_id: u32) -> Result<&Node, Error> {
         let node = match self.nodes.get(node_id as usize) {
@@ -208,6 +213,9 @@ impl Tree {
     // Section 7.5 Tree Hash
     pub fn hash(&self, node_id: u32) -> Result<Vec<u8>, Error> {
         let node = self.get_node(node_id)?;
+        self.hash_node(node)
+    }
+    pub fn hash_node(&self, node: &Node) -> Result<Vec<u8>, Error> {
         match node.node_type {
             NodeType::Parent => self.hash_parent(node),
             NodeType::Leaf => self.hash_leaf(node),

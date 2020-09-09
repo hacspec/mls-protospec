@@ -2,7 +2,7 @@ use crate::{key_package::KeyPackage, util};
 use std::fmt::Debug;
 
 #[derive(Default, Debug)]
-pub(crate) struct Node {
+pub struct Node {
     pub(crate) id: u32,
     pub(crate) leaf_id: Option<u32>, // Only used if node_type is Leaf
     pub(crate) node_type: NodeType,

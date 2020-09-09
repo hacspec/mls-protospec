@@ -6,5 +6,7 @@ pub mod key_package;
 pub mod message;
 pub mod proposal;
 pub mod traits;
-mod tree;
+pub mod tree;
 mod util;
+
+pub mod prelude;
