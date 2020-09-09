@@ -22,6 +22,7 @@ fn test_tree_hash() {
         let leaf_i = tree.get_leaf_node(i).unwrap();
         let hash = tree.hash_node(leaf_i).unwrap();
         println!("Hash of {}: {:?}", leaf_i, hash);
+        println!("Leaf {}: {:?}", i, leaf_i);
     }
 
     // Compute tree hash (hash of root node)
