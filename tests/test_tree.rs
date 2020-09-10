@@ -25,6 +25,16 @@ fn test_tree_hash() {
         println!("Leaf {}: {:?}", i, leaf_i);
     }
 
+    // Compute hash for nodes on level > 0 that's not root.
+    for level in 1..tree.get_height() {
+        let level = tree.get_level(level);
+        for node in level.iter() {
+            let hash = tree.hash_node(node).unwrap();
+            println!("Hash of {}: {:?}", node, hash);
+            println!("Node {}: {:?}", node, node);
+        }
+    }
+
     // Compute tree hash (hash of root node)
     let root = tree.get_root();
     let tree_hash = tree.hash_node(root);

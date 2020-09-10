@@ -37,16 +37,16 @@ impl<'a> Encode for ParentNode<'a> {
 pub(crate) struct ParentNodeHashInput<'a> {
     node_index: u32,
     parent_node: Option<ParentNode<'a>>,
-    left_hash: Vec<u8>,
-    right_hash: Vec<u8>,
+    left_hash: &'a [u8],
+    right_hash: &'a [u8],
 }
 
 impl<'a> ParentNodeHashInput<'a> {
     pub(crate) fn new(
         node_index: u32,
         parent_node: Option<ParentNode<'a>>,
-        left_hash: Vec<u8>,
-        right_hash: Vec<u8>,
+        left_hash: &'a [u8],
+        right_hash: &'a [u8],
     ) -> Self {
         Self {
             node_index,

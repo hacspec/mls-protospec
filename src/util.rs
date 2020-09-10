@@ -42,22 +42,23 @@ pub(crate) fn left(x: u32) -> u32 {
     x ^ (0x01 << (k - 1))
 }
 
-pub(crate) fn right(x: u32) -> u32 {
+pub(crate) fn right(x: u32, n_nodes: u32) -> u32 {
     let k = level(x);
     if k == 0 {
         panic!("leaf nodes have no children");
     }
 
-    // This is different from RFC calculation.
-    // It's only returning an ID, we don't care if there's a node or not.
-    let r = x ^ (0x03 << (k - 1));
+    let mut r = x ^ (0x03 << (k - 1));
+    while r >= num_nodes(n_nodes) {
+        r = left(r)
+    }
     r
 }
 
-pub(crate) fn sibling(x: u32) -> u32 {
+pub(crate) fn sibling(x: u32, n_nodes: u32) -> u32 {
     let p = parent(x);
     if x < p {
-        right(p)
+        right(p, n_nodes)
     } else {
         left(p)
     }

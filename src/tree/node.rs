@@ -56,23 +56,23 @@ impl Node {
         debug_assert!(self.node_type != NodeType::Leaf);
         util::left(self.id)
     }
-    pub(crate) fn get_right_id(&self) -> u32 {
+    pub(crate) fn get_right_id(&self, num_nodes: u32) -> u32 {
         debug_assert!(self.node_type != NodeType::Leaf);
-        util::right(self.id)
+        util::right(self.id, num_nodes)
     }
     pub(crate) fn get_parent_id(&self) -> u32 {
         util::parent(self.id)
     }
-    pub(crate) fn get_sibling_id(&self) -> u32 {
-        util::sibling(self.id)
+    pub(crate) fn get_sibling_id(&self, num_nodes: u32) -> u32 {
+        util::sibling(self.id, num_nodes)
     }
     pub(crate) fn get_direct_path_ids(&self, root: &Self) -> Vec<u32> {
         util::direct_path(self.id, root.id)
     }
-    pub(crate) fn get_co_path_ids(&self, root: &Self) -> Vec<u32> {
+    pub(crate) fn get_co_path_ids(&self, root: &Self, num_nodes: u32) -> Vec<u32> {
         let mut direct_path = vec![self.id];
         direct_path.extend(self.get_direct_path_ids(root));
         direct_path.pop();
-        direct_path.iter().map(|&v| util::sibling(v)).collect()
+        direct_path.iter().map(|&v| util::sibling(v, num_nodes)).collect()
     }
 }

@@ -2,7 +2,7 @@
 //! A binary tree structure
 
 use crate::ciphersuites::*;
-use crate::{util, traits::Encode};
+use crate::{traits::Encode, util};
 use evercrypt::prelude::*;
 
 mod tree_hash;
@@ -19,6 +19,7 @@ use std::fmt::Debug;
 pub enum Error {
     InvalidNodeId,
     NodeIdTooFarTooTheRight,
+    InconsistentTreeState,
 }
 
 #[derive(Debug)]
@@ -44,6 +45,15 @@ impl Tree {
     pub fn num_nodes(&self) -> u32 {
         util::num_nodes(self.leaf_id_ctr)
     }
+    pub fn get_node_mut(&mut self, id: u32) -> Result<&mut Node, Error> {
+        if id > self.id_ctr {
+            return Err(Error::InvalidNodeId);
+        }
+        match self.nodes.get_mut(id as usize) {
+            Some(n) => Ok(n),
+            None => Err(Error::InvalidNodeId),
+        }
+    }
     pub fn get_node(&self, id: u32) -> Result<&Node, Error> {
         if id > self.id_ctr {
             return Err(Error::InvalidNodeId);
@@ -54,7 +64,7 @@ impl Tree {
         }
     }
     pub fn get_leaf_node(&self, leaf_id: u32) -> Result<&Node, Error> {
-        self.get_node(2*leaf_id)
+        self.get_node(2 * leaf_id)
     }
     pub fn get_parent(&self, node_id: u32) -> Result<&Node, Error> {
         let node = match self.nodes.get(node_id as usize) {
@@ -77,7 +87,7 @@ impl Tree {
         self.get_sibling_from_node(node)
     }
     pub fn get_sibling_from_node(&self, node: &Node) -> Result<&Node, Error> {
-        match self.nodes.get(node.get_sibling_id() as usize) {
+        match self.nodes.get(node.get_sibling_id(self.leaf_id_ctr) as usize) {
             Some(n) => Ok(n),
             None => Err(Error::InvalidNodeId),
         }
@@ -103,7 +113,7 @@ impl Tree {
         self.get_right_child_from_node(node)
     }
     pub fn get_right_child_from_node(&self, node: &Node) -> Result<&Node, Error> {
-        match self.nodes.get(node.get_right_id() as usize) {
+        match self.nodes.get(node.get_right_id(self.leaf_id_ctr) as usize) {
             Some(n) => Ok(n),
             None => Err(Error::InvalidNodeId),
         }
@@ -139,16 +149,13 @@ impl Tree {
         }
 
         // Now add the leaf.
-        self.nodes.push(Node::new(
-            NodeType::Leaf,
-            self.id_ctr,
-            Some(self.leaf_id_ctr),
-        ));
+        let new_leaf = Node::new(NodeType::Leaf, self.id_ctr, Some(self.leaf_id_ctr));
+        self.nodes.push(new_leaf);
         self.leaf_id_ctr += 1;
         self.id_ctr += 1;
     }
 
-    fn get_level(&self, level: u32) -> Vec<&Node> {
+    pub fn get_level(&self, level: u32) -> Vec<&Node> {
         let mut out = Vec::new();
 
         for node in &self.nodes {
@@ -191,8 +198,18 @@ impl Tree {
     }
 
     fn hash_parent(&self, node: &Node) -> Result<Vec<u8>, Error> {
-        let left_hash = self.hash(node.get_left_id())?;
-        let right_hash = self.hash(node.get_right_id())?;
+        let left_node = self.get_node(node.get_left_id())?;
+        let left_hash = self.hash_node(left_node)?;
+        let right_node = self.get_node(node.get_right_id(self.leaf_id_ctr))?;
+        let right_hash = self.hash_node(right_node)?;
+
+        if !left_node.subtree_hash.is_empty() && left_node.subtree_hash != left_hash {
+            return Err(Error::InconsistentTreeState);
+        }
+        if !right_node.subtree_hash.is_empty() && right_node.subtree_hash != right_hash {
+            return Err(Error::InconsistentTreeState);
+        }
+
         let parent_node = if self.get_root().id == node.id {
             None
         } else {
@@ -202,7 +219,7 @@ impl Tree {
                 &node.parent_hash,
             ))
         };
-        let input = ParentNodeHashInput::new(node.id, parent_node, left_hash, right_hash);
+        let input = ParentNodeHashInput::new(node.id, parent_node, &left_hash, &right_hash);
         Ok(hash(self.ciphersuite.hash, &input.encode()))
     }
     fn hash_leaf(&self, node: &Node) -> Result<Vec<u8>, Error> {
