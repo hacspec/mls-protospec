@@ -1,5 +1,5 @@
 use crate::{
-    ciphersuites::Ciphersuite, credential::Credential, extensions::Extension, traits::Encode,
+    ciphersuites::Ciphersuite, credentials::Credential, extensions::*, traits::Encode, encode_util::{encode_slice, LenType}
 };
 use hpke::Hpke;
 
@@ -35,19 +35,69 @@ impl Default for ProtocolVersion {
 pub struct KeyPackage {
     version: ProtocolVersion,
     cipher_suite: Ciphersuite,
-    hpke_init_key: Vec<u8>,
+    public_hpke_init_key: Vec<u8>,
+    private_hpke_init_key: Vec<u8>,
     credential: Box<Credential>,
     extensions: Vec<Extension>,
     signature: Vec<u8>,
 }
 
-impl Encode for &KeyPackage {
-    fn encode(&self) -> Vec<u8> {
+impl KeyPackage {
+    pub fn new(
+        version: ProtocolVersion,
+        cipher_suite: Ciphersuite,
+        credential: Box<Credential>,
+    ) -> Self {
+        let hpke_init_key = hpke::Hpke::new(
+            hpke::Mode::Base,
+            cipher_suite.kem,
+            cipher_suite.hpke_kdf,
+            cipher_suite.hpke_aead,
+        );
+        let (sk, pk) = hpke_init_key.key_gen();
+        Self {
+            version,
+            cipher_suite,
+            public_hpke_init_key: pk,
+            private_hpke_init_key: sk,
+            credential,
+            extensions: Vec::new(),
+            signature: Vec::new(),
+        }
+    }
+
+    pub(crate) fn add_extension(&mut self, extension: Extension) {
+        self.extensions.push(extension);
+    }
+
+    pub(crate) fn add_extensions(&mut self, extensions: &[Extension]) {
+        // XXX: consume?
+        self.extensions.extend_from_slice(extensions);
+    }
+
+    fn to_bytes(&self) -> Vec<u8> {
         let mut out = Vec::new();
         out.push(self.version as u8);
         out.extend(&self.cipher_suite.encode());
-        out.extend(&self.hpke_init_key); // This is already encoded.
+        out.extend(&self.public_hpke_init_key); // This is already encoded.
+        out.extend(self.credential.encode());
+        out.extend(encode_extensions(&self.extensions));
         out
+    }
+
+    pub(crate) fn sign(&mut self, credential: &Credential) {
+        let sig = credential.credential.sign(&self.to_bytes());
+        self.signature = sig;
+    }
+
+    pub(crate) fn verify(&self) -> bool {
+        self.credential.credential.verify(&self.to_bytes(), &self.signature)
+    }
+}
+
+impl Encode for &KeyPackage {
+    fn encode(&self) -> Vec<u8> {
+        self.to_bytes()
     }
 }
 

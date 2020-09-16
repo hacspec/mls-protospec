@@ -1,5 +1,5 @@
 pub mod ciphersuites;
-pub mod credential;
+pub mod credentials;
 mod encode_util;
 mod extensions;
 pub mod key_package;

@@ -1,13 +1,18 @@
-use crate::{traits::Encode, encode_util::*};
+use crate::{encode_util::*, traits::Encode};
+
+pub mod ed25519;
 
 type CredentialType = u16;
 
-pub trait CredentialTrait: Encode + std::fmt::Debug {}
+pub trait CredentialTrait: Encode + std::fmt::Debug {
+    fn sign(&self, data: &[u8]) -> Vec<u8>;
+    fn verify(&self, data: &[u8], signature: &[u8]) -> bool;
+}
 
 #[derive(Debug)]
 pub struct Credential {
     credential_type: CredentialType,
-    credential: dyn CredentialTrait,
+    pub(crate) credential: dyn CredentialTrait,
 }
 
 impl Encode for Credential {
@@ -19,11 +24,20 @@ impl Encode for Credential {
     }
 }
 
-// TODO: Add Ed25519 and P256 basic credentials
-
+#[derive(Debug)]
 pub struct BasicCredential {
     identity: Vec<u8>,
     public_key: Vec<u8>,
+    private_key: Vec<u8>,
+}
+
+impl CredentialTrait for BasicCredential {
+    fn sign(&self, data: &[u8]) -> Vec<u8> {
+        unimplemented!()
+    }
+    fn verify(&self, data: &[u8], signature: &[u8]) -> bool {
+        unimplemented!()
+    }
 }
 
 impl Encode for BasicCredential {

@@ -8,6 +8,7 @@ pub struct Ciphersuite {
     pub(crate) hash: digest::Mode,
     pub(crate) kem: hpke::kem::Mode,
     pub(crate) kdf: hmac::Mode, // Not in spec. Only HKDF is specified here. This can't be used in HPKE, but only standalone
+    pub(crate) hpke_kdf: hpke::kdf::Mode,
     pub(crate) hpke_aead: hpke::aead::Mode, // Not in spec. Should really be the same as aead.
     pub(crate) aead: aead::Mode,
     pub(crate) signature: signature::Mode,
@@ -108,6 +109,21 @@ fn get_hpke_aead_from_suite(name: &Name) -> hpke::aead::Mode {
     }
 }
 
+fn get_hpke_kdf_from_suite(name: &Name) -> hpke::kdf::Mode {
+    match name {
+        Name::MLS10_128_DHKEMX25519_AES128GCM_SHA256_Ed25519 => hpke::kdf::Mode::HkdfSha256,
+        Name::MLS10_128_DHKEMP256_AES128GCM_SHA256_P256 => hpke::kdf::Mode::HkdfSha256,
+        Name::MLS10_128_DHKEMX25519_CHACHA20POLY1305_SHA256_Ed25519 => {
+            hpke::kdf::Mode::HkdfSha256
+        }
+        Name::MLS10_256_DHKEMX448_AES256GCM_SHA512_Ed448 => hpke::kdf::Mode::HkdfSha512,
+        Name::MLS10_256_DHKEMP521_AES256GCM_SHA512_P521 => hpke::kdf::Mode::HkdfSha512,
+        Name::MLS10_256_DHKEMX448_CHACHA20POLY1305_SHA512_Ed448 => {
+            hpke::kdf::Mode::HkdfSha512
+        }
+    }
+}
+
 impl Ciphersuite {
     pub fn new(name: Name) -> Self {
         Self {
@@ -115,6 +131,7 @@ impl Ciphersuite {
             hash: get_hash_from_suite(&name),
             kem: get_kem_from_suite(&name),
             kdf: get_kdf_from_suite(&name),
+            hpke_kdf: get_hpke_kdf_from_suite(&name),
             hpke_aead: get_hpke_aead_from_suite(&name),
             aead: get_aead_from_suite(&name),
             signature: get_signature_from_suite(&name),
